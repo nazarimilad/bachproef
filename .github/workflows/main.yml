@@ -1,0 +1,70 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - master
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    env:
+        FIRST_NAME: Milad
+        LAST_NAME: Nazari
+    steps:
+    - uses: actions/checkout@v1
+    - name: Compile bachelor thesis proposition
+      uses: xu-cheng/latex-action@1.2.1
+      with:
+          root_file: voorstel.tex
+          working_directory: ./voorstel
+    - name: Compile bachelor thesis
+      uses: xu-cheng/latex-action@1.2.1
+      with:
+          root_file: bachproef-tin.tex
+          working_directory: ./bachproef
+    - name: Analyse bachelor thesis
+      id: analysis
+      run: |
+        sudo apt-get install python3-setuptools
+        pip3 install -r requirements.txt
+        echo "::set-output name=analysis_result::$(python3 analyse_bachelor_thesis.py)"
+      working-directory: ./bachproef
+    - name: Get current date
+      id: date
+      run: | 
+        echo "::set-output name=date_full::$(date +'%d-%m-%Y__%H-%M')"
+        echo "::set-output name=date_year::$(date +'%Y')"
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@master
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+          tag_name: ${{steps.date.outputs.date_full}}
+          release_name: Release
+          body: |
+            ${{steps.analysis.outputs.analysis_result}}
+          draft: false
+          prerelease: false
+    - name: Upload bachelor thesis proposition
+      id: upload-release-bachelor-thesis-proposition 
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+        asset_path: ./voorstel/voorstel.pdf
+        asset_name: ${{env.LAST_NAME}}_${{env.FIRST_NAME}}_${{steps.date.outputs.date_year}}_bachelorproef_voorstel.pdf 
+        asset_content_type: application/pdf
+    - name: Upload bachelor thesis
+      id: upload-release-bachelor-thesis
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./bachproef/bachproef-tin.pdf
+        asset_name: ${{env.LAST_NAME}}_${{env.FIRST_NAME}}_${{steps.date.outputs.date_year}}_bachelorproef.pdf
+        asset_content_type: application/pdf
